@@ -1,0 +1,87 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This notebook will simulate Regression Discontinuity Design (from hereon RDD) and feature some common pitfalls. 
+The basic idea is to find imagine some cutoff in a metric (using theory or intuition) and test for a discontinuity around that cutoff. 
+
+Say there's a university scholarship given to students with a GPA of 3.5 and higher. We want to test whether this scholarship has an impact on future earnings, or time to graduation, or whatever (since the data is fake it doesn't really matter what we consider the dependent variable to be). 
+
+First I'll simulate some linearly related data with a cutoff after 50 data points. We'll only use different  slopes, and slightly more variability in the data after the cutoff. I'll continue with the GPA example. Notice that if we plot all the gpas from 1.0 to 4.0, a cutoff isn't very apparent, at least not immediately. You might conclude the scholarship had no impact. 
+
+```{r}
+set.seed(100)
+dependent1 <- c(1:1000 * 0)
+independent1 <- sort(runif(1000,min = 1.00, max = 4.00))
+dependent1[1:750] <- 2.7 * independent1[1:750] + 1.1 + rnorm(750)
+dependent1[751:1000] <- 3.2 * independent1[751:1000] + 1.1 + rnorm(250, 0, 1.1)
+plot(dependent1~independent1)
+#now zoomed in a bit (not the exact same data, but you get the idea)
+dependent <- c(1:500 * 0)
+independent <- sort(runif(500,min = 3.15, max = 3.99))
+dependent[1:250] <- 2.7 * independent[1:250] + 1.1 + rnorm(250)
+dependent[251:500] <- 3.2 * independent[251:500] + 1.1 + rnorm(250, 0, 1.1)
+plot(dependent~independent)
+```
+
+If we just do a straight linear regression (y=ax + b), we get a fitted line that ignores the discontinuity. Notice that the estimated coefficient on the independent variable is considerably higher than what we set it to be. 
+
+```{r}
+lm(dependent~independent)
+plot(dependent~independent)
+abline(lm(dependent~independent), col = "blue")
+```
+
+Notice that if we run two seperate regressions for the first 50, and last 50 sets of data we get slopes closer to the two that we set at the beginning. 
+
+
+```{r}
+lm(dependent[1:250]~independent[1:250])
+lm(dependent[251:500]~independent[251:500])
+```
+
+Now if we plot those lines we should get two more or less parallel lines seperated by a gap. This gap is the treatment effect in this toy example.
+```{r}
+plot(dependent~independent)
+abline(lm(dependent[1:250]~independent[1:250]))
+abline(lm(dependent[251:500]~independent[251:500]))
+```
+
+
+
+
+Now for the RDD package that will allow us to play around with this. 
+
+```{r}
+library(rddtools)
+library(rdd)
+data <- rdd_data(dependent, independent, cutpoint = 3.551022)
+reg1 <- rdd_gen_reg(data)
+reg1
+```
+
+```{r}
+reg2 <- RDestimate(dependent~independent, cutpoint = 3.551022)
+plot(reg2)
+```
+
+
+```{r}
+plotPlacebo(reg1)
+```
+
+Mcrary (2008) presents a test for manipulation of the independent variable. In our example, this would mean students work to have a gpa just barely above the cutoff. This results in a greater density of data points just above the cutoff than below. In the case of the simulation, we cannot reject the null at conventional levels of statistical significance, so we have little reason to believe that manipulation was present. Of course, we know there isn’t, since I made it! 
+
+
+```{r}
+mcrary <- dens_test(reg1)
+mcrary
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
